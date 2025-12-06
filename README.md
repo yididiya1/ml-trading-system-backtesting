@@ -121,4 +121,6 @@ Interpretation (entry at 1900):
 ### Data split settings
 - train_frac, val_frac : time split ratios
 
+## Notebook
 
+- Notebook version of the pipeline: `notebooks/marimo_demo.ipynb`

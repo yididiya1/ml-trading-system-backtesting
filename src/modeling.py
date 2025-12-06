@@ -1,11 +1,11 @@
 
-from typing import Optional
+from typing import Any
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, confusion_matrix
 
 from config import Config
+from .marimo_adapter import get_estimator
 
 
 def train_model(
@@ -14,15 +14,9 @@ def train_model(
     X_val: pd.DataFrame,
     y_val: pd.Series,
     cfg: Config,
-) -> RandomForestClassifier:
-    """Train a RandomForestClassifier and print validation metrics."""
-    clf = RandomForestClassifier(
-        n_estimators=cfg.n_estimators,
-        max_depth=cfg.max_depth,
-        random_state=cfg.random_state,
-        n_jobs=-1,
-        class_weight="balanced",  # helps if labels are imbalanced
-    )
+) -> Any:
+    """Train an estimator and print validation metrics."""
+    clf = get_estimator(cfg)
     clf.fit(X_train, y_train)
 
     # Validation metrics
@@ -84,7 +78,7 @@ def train_model(
 
 
 def evaluate_on_test(
-    clf: RandomForestClassifier,
+    clf: Any,
     X_test: pd.DataFrame,
     y_test: pd.Series,
     cfg: Config,
@@ -106,23 +100,25 @@ def evaluate_on_test(
     # Get class probabilities: shape (n_samples, n_classes)
     proba = clf.predict_proba(X_test)  # columns correspond to classes in clf.classes_
 
-    classes = clf.classes_
-    # Find index of labels -1, 0, 1 in the proba array
-    idx_minus1 = np.where(classes == -1)[0][0]
-    idx_zero = np.where(classes == 0)[0][0]
-    idx_plus1 = np.where(classes == 1)[0][0]
+    classes = getattr(clf, "classes_", np.array([]))
 
-    # For each sample, decide:
-    # - compute p_sell, p_no_trade, p_buy
-    # - take the best non-zero class only if its prob > min_prob_trade
-    # - else, prediction = 0
+    # Map class label -> column index in proba. If a class wasn't present
+    # during training, treat its probability as 0.
+    class_to_idx = {int(c): i for i, c in enumerate(classes)}
+
+    def prob_for_label(row_idx: int, label: int) -> float:
+        if label in class_to_idx:
+            return proba[row_idx, class_to_idx[label]]
+        return 0.0
+
+    # For each sample, decide best non-zero class (BUY=1 or SELL=-1) and apply
+    # the probability threshold. If neither meets the threshold, predict 0.
     filtered_preds = []
     for i in range(len(X_test)):
-        p_sell = proba[i, idx_minus1]
-        p_zero = proba[i, idx_zero]
-        p_buy = proba[i, idx_plus1]
+        p_sell = prob_for_label(i, -1)
+        p_buy = prob_for_label(i, 1)
 
-        # best non-zero class & its prob
+        # choose best of buy/sell
         if p_buy >= p_sell:
             best_label = 1
             best_prob = p_buy
@@ -133,7 +129,7 @@ def evaluate_on_test(
         if best_prob >= cfg.min_prob_trade:
             filtered_preds.append(best_label)
         else:
-            filtered_preds.append(0)  # skip trade
+            filtered_preds.append(0)
 
     y_pred = np.array(filtered_preds)
 
@@ -151,7 +147,7 @@ def evaluate_on_test(
 
     if len(y_test_trades) == 0:
         print("\nNo trades taken on test set based on probability filter.")
-        return
+        return y_pred
 
     wins = ((y_test_trades == y_pred_trades) & (y_test_trades != 0)).sum()
     losses = (y_test_trades != 0).sum() - wins
