@@ -38,6 +38,8 @@ Given historical OHLCV candles, the pipeline:
 ## Project structure
 
 Typical structure:
+
+```bash
 trading_bot_part1/
 ├─ main.py # Entry point: runs the entire pipeline
 ├─ requirements.txt # Python dependencies
@@ -52,7 +54,7 @@ trading_bot_part1/
 ├─ visualization.py # Label visualization (optional)
 ├─ visualization_trades.py # Trade visualization on test set (win/loss/ambiguous)
 └─ equity_curve.py # Simulated equity curve from test trades (optional)
-
+```
 
 ## Requirements
 
@@ -68,18 +70,20 @@ source .venv/bin/activate
 ```
 
 ### Install packages
+```bash
 pip install -r requirements.txt
-
+```
 
 ### Preparing historical data
 Required CSV format
 
 Your CSV should be clean and consistent with a header like:
 
+```bash
 time,open,high,low,close,volume
 2023-03-08 04:10:00,1810.595,1810.605,1809.958,1810.138,307
 ...
-
+```
 
 Key requirements:
 - time must be parseable as datetime
